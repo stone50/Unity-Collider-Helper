@@ -4,7 +4,7 @@ A Unity helper class that adds features to colliders
 ## Supported Colliders
 -BoxCollider2D
 
--CapsuleCollider2D
+-CapsuleCollider2D (without rotations)
 
 -CircleCollider2D
 
