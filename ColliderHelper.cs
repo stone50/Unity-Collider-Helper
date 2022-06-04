@@ -336,20 +336,14 @@ public class ColliderHelper : MonoBehaviour
     public static CastResult2D ColliderVerticalCast2D(Collider2D collider1, Collider2D collider2, float ray)
     {
         CastResult2D result = PolygonVerticalCast2D(GetColliderVertices2D(collider1), GetColliderVertices2D(collider2), ray);
-        if (result.success)
-        {
-            result.hitCollider = collider2;
-        }
+        result.hitCollider = collider2;
         return result;
     }
 
     public static CastResult2D ColliderCast2D(Collider2D collider1, Collider2D collider2, Vector2 ray)
     {
         CastResult2D result = PolygonCast2D(GetColliderVertices2D(collider1), GetColliderVertices2D(collider2), ray);
-        if (result.success)
-        {
-            result.hitCollider = collider2;
-        }
+        result.hitCollider = collider2;
         return result;
     }
 
@@ -373,51 +367,70 @@ public class ColliderHelper : MonoBehaviour
         return results;
     }
 
-    public static CastResult2D[] ColliderVerticalCast2D(Collider2D collider1, Collider2D[] collider2s, float ray, bool filter = false, bool sort = false)
+    public static CastResult2D[] ColliderVerticalCast2D(Collider2D collider1, Collider2D[] collider2s, float ray, bool filter = false, bool sort = false, bool includeSelf = true)
     {
         Vector2[] vertices = GetColliderVertices2D(collider1);
         List<CastResult2D> results = new List<CastResult2D>();
         for (int i = 0; i < collider2s.Length; i++)
         {
-            CastResult2D castResult = PolygonVerticalCast2D(vertices, GetColliderVertices2D(collider2s[i]), ray);
-            if (castResult.success)
+            if (includeSelf || collider2s[i] != collider1)
             {
-                castResult.hitCollider = collider2s[i];
-                results.Add(castResult);
-            }
-            else if (!filter)
-            {
-                results.Add(castResult);
+                CastResult2D castResult = PolygonVerticalCast2D(vertices, GetColliderVertices2D(collider2s[i]), ray);
+                if (castResult.success || !filter)
+                {
+                    castResult.hitCollider = collider2s[i];
+                    results.Add(castResult);
+                }
             }
         }
         if (sort)
         {
-            results.Sort(delegate (CastResult2D result1, CastResult2D result2) { return result1.ray.magnitude < result2.ray.magnitude ? 1 : -1; });
+            results.Sort(delegate (CastResult2D result1, CastResult2D result2) { return result1.ray.magnitude > result2.ray.magnitude ? 1 : -1; });
         }
         return results.ToArray();
     }
 
-    public static CastResult2D[] ColliderCast2D(Collider2D collider1, Collider2D[] collider2s, Vector2 ray, bool filter = false, bool sort = false)
+    public static CastResult2D[] ColliderCast2D(Collider2D collider1, Collider2D[] collider2s, Vector2 ray, bool filter = false, bool sort = false, bool includeSelf = true)
     {
         Vector2[] vertices = GetColliderVertices2D(collider1);
         List<CastResult2D> results = new List<CastResult2D>();
         for (int i = 0; i < collider2s.Length; i++)
         {
-            CastResult2D castResult = PolygonCast2D(vertices, GetColliderVertices2D(collider2s[i]), ray);
-            if (castResult.success)
+            if (includeSelf || collider2s[i] != collider1)
             {
-                castResult.hitCollider = collider2s[i];
-                results.Add(castResult);
-            }
-            else if (!filter)
-            {
-                results.Add(castResult);
+                CastResult2D castResult = PolygonCast2D(vertices, GetColliderVertices2D(collider2s[i]), ray);
+                if (castResult.success || !filter)
+                {
+                    castResult.hitCollider = collider2s[i];
+                    results.Add(castResult);
+                }
             }
         }
         if (sort)
         {
-            results.Sort(delegate (CastResult2D result1, CastResult2D result2) { return result1.ray.magnitude < result2.ray.magnitude ? 1 : -1; });
+            results.Sort(delegate (CastResult2D result1, CastResult2D result2) { return result1.ray.magnitude > result2.ray.magnitude ? 1 : -1; });
         }
         return results.ToArray();
+    }
+
+    public static Collider2D[] GetAllColliders()
+    {
+        List<Collider2D> colliders = new List<Collider2D>();
+        GameObject[] gameObjects = UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects();
+        foreach (GameObject gameObject in gameObjects)
+        {
+            colliders.AddRange(gameObject.GetComponentsInChildren<Collider2D>());
+        }
+        return colliders.ToArray();
+    }
+
+    public static CastResult2D[] ColliderVerticalCastAll2D(Collider2D collider1, float ray, bool filter = false, bool sort = false, bool includeSelf = true)
+    {
+        return ColliderVerticalCast2D(collider1, GetAllColliders(), ray, filter, sort, includeSelf);
+    }
+
+    public static CastResult2D[] ColliderCastAll2D(Collider2D collider1, Vector2 ray, bool filter = false, bool sort = false, bool includeSelf = true)
+    {
+        return ColliderCast2D(collider1, GetAllColliders(), ray, filter, sort, includeSelf);
     }
 }
