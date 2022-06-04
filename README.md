@@ -2,17 +2,27 @@
 A Unity helper class that adds features to colliders
 
 ## Supported Colliders
--BoxCollider2D
+- BoxCollider2D
 
--CapsuleCollider2D (without rotations)
+- CapsuleCollider2D (without rotations)
 
--CircleCollider2D
+- CircleCollider2D
 
--PolygonCollider2D
+- PolygonCollider2D
 
 ## Features
--Getting collider vertices
+### - Getting Collider Vertices
 
--2D polygon casting (single and multiple targets)
+### - 2D Polygon Casting
+- Cast against a single polygon or multiple polygons
 
--2D collider casting (single and multiple targets): allows for filtering unsuccessful hits and sorting hits by distance
+### - 2D Collider Casting
+- Cast against a single collider, multiple colliders, or all colliders in the scene
+
+- Filter unsuccessfult hits
+
+- Sort hits by distance
+
+- Exclude the collider being cast
+
+### - Getting All Colliders In The Scene
