@@ -144,77 +144,136 @@ public class ColliderHelper : MonoBehaviour
         }
     }
 
-    public static CastResult2D PolygonVerticalCast2D(Vector2[] polygon1, Vector2[] polygon2, float ray)
+    public static CastResult2D LinesIntersect2D(Vector2 line1point1, Vector2 line1point2, Vector2 line2point1, Vector2 line2point2)
     {
-        CastResult2D result = new CastResult2D(false, new Vector2(0, ray));
+        // Using the classic y=mx+b, we can set the equation for each line equal (m1x+b1=m2x+b2).
+        // Then with a bit of algebra, the point which the lines cross can be found.
 
-        float rayDirection = Mathf.Sign(ray);
+        CastResult2D result = new CastResult2D();
+        float line1xDiff = line1point1.x - line1point2.x;
+        float line2xDiff = line2point1.x - line2point2.x;
+        float line1slope = (line1point1.y - line1point2.y) / line1xDiff;
+        float line2slope = (line2point1.y - line2point2.y) / line2xDiff;
+        float resultX = 0;
+        float resultY = 0;
+
+        // Vertical lines need to be dealt with separately because their slopes are undefined.
+        if (line1xDiff == 0)
+        {
+            if (line2xDiff != 0)
+            {
+                resultX = line1point1.x;
+                resultY = (line2slope * line1point1.x) + line2point1.y - (line2slope * line2point1.x);
+            }
+        }
+        else if (line2xDiff == 0)
+        {
+            resultX = line2point1.x;
+            resultY = (line1slope * line2point1.x) + line1point1.y - (line1slope * line1point1.x);
+        }
+        else
+        {
+            // If the lines are parallel, their slopes will be equal and the lines will not cross.
+            float slopeDiff = line1slope - line2slope;
+            if (slopeDiff != 0)
+            {
+                float b1 = line1point1.y - (line1slope * line1point1.x);
+                resultX = (line2point1.y - (line2slope * line2point1.x) - b1) / slopeDiff;
+                resultY = (line1slope * resultX) + b1;
+            }
+        }
+
+        // After finding the intersection point, it needs to be tested to see if it lies between both sets of endpoints.
+        if (
+            Mathf.Min(line1point1.x, line1point2.x) <= resultX &&
+            Mathf.Max(line1point1.x, line1point2.x) >= resultX &&
+            Mathf.Min(line1point1.y, line1point2.y) <= resultY &&
+            Mathf.Max(line1point1.y, line1point2.y) >= resultY &&
+            Mathf.Min(line2point1.x, line2point2.x) <= resultX &&
+            Mathf.Max(line2point1.x, line2point2.x) >= resultX &&
+            Mathf.Min(line2point1.y, line2point2.y) <= resultY &&
+            Mathf.Max(line2point1.y, line2point2.y) >= resultY
+        )
+        {
+            result.success = true;
+            result.hitPoint = new Vector2(resultX, resultY);
+        }
+
+        return result;
+    }
+
+    public static bool PolygonOverlapPoint2D(Vector2[] polygon, Vector2 point)
+    {
+        if (polygon.Length < 3)
+        {
+            return false;
+        }
+
+        // A ray, starting from the point, pointing straight up (positive y), will intersect the edges of the polygon an even number of times if the point is inside the polygon.
+
+        int crossings = 0;
+        float direction = Mathf.Sign(polygon[1].x - polygon[0].x);
+        for (int i = 0; i < polygon.Length; i++)
+        {
+            Vector2 pPoint1 = polygon[i];
+            Vector2 pPoint2 = polygon[(i + 1) % polygon.Length];
+            CastResult2D lineCrossing = LinesIntersect2D(point, new Vector2(point.x, Mathf.Infinity), pPoint1, pPoint2);
+            if (lineCrossing.success)
+            {
+                crossings++;
+            }
+        }
+        return crossings % 2 == 1;
+    }
+
+    public static CastResult2D PolygonsAreTouching2D(Vector2[] polygon1, Vector2[] polygon2)
+    {
+        // If any edges from polygon1 cross any edges from polygon2, the two polygons are touching.
+        // The only other way the polygons could touch is if one polygon is entirely inside the other.
+        // In this case, only one vertex from each polygon needs to be tested for overlap.
+
+        if (polygon2.Length > 0 && PolygonOverlapPoint2D(polygon1, polygon2[0]))
+        {
+            return new CastResult2D(true, default, polygon2[0]);
+        }
+        if (polygon1.Length > 0 && PolygonOverlapPoint2D(polygon2, polygon1[0]))
+        {
+            return new CastResult2D(true, default, polygon1[0]);
+        }
+
         for (int p1PointIndex = 0; p1PointIndex < polygon1.Length; p1PointIndex++)
         {
             Vector2 p1Point1 = polygon1[p1PointIndex];
             Vector2 p1Point2 = polygon1[(p1PointIndex + 1) % polygon1.Length];
+
+            float p1PointsSlope = (p1Point1.y - p1Point2.y) / (p1Point1.x - p1Point2.x);
             for (int p2PointIndex = 0; p2PointIndex < polygon2.Length; p2PointIndex++)
             {
                 Vector2 p2Point1 = polygon2[p2PointIndex];
                 Vector2 p2Point2 = polygon2[(p2PointIndex + 1) % polygon2.Length];
-
-                // cast ray from p1Point1 to the line between p2Point1 and p2Point2
-                float polygon2DeltaX = p2Point1.x - p2Point2.x;
-                if (polygon2DeltaX != 0)
+                CastResult2D lineCrossing = LinesIntersect2D(p1Point1, p1Point2, p2Point1, p2Point2);
+                if (lineCrossing.success)
                 {
-                    float polygon2Slope = (p2Point1.y - p2Point2.y) / polygon2DeltaX;
-                    if (
-                        p1Point1.x >= Mathf.Min(p2Point1.x, p2Point2.x) &&
-                        p1Point1.x <= Mathf.Max(p2Point1.x, p2Point2.x)
-                    )
-                    {
-                        float resultY = (polygon2Slope * p1Point1.x) + p2Point1.y - (p2Point1.x * polygon2Slope);
-                        Vector2 collisionRay = new Vector2(p1Point1.x - p1Point1.x, resultY - p1Point1.y);
-                        if (Mathf.Sign(collisionRay.y) == rayDirection && collisionRay.magnitude < result.ray.magnitude)
-                        {
-                            result.success = true;
-                            result.ray = collisionRay;
-                            result.hitPoint = new Vector2(p1Point1.x, resultY);
-                        }
-                    }
-                }
-
-                // cast ray from p2Point1 to the line between p1Point1 and p1Point2
-                float polygon1DeltaX = p1Point1.x - p1Point2.x;
-                if (polygon1DeltaX != 0)
-                {
-                    float polygon1Slope = (p1Point1.y - p1Point2.y) / polygon1DeltaX;
-                    if (
-                        p2Point1.x >= Mathf.Min(p1Point1.x, p1Point2.x) &&
-                        p2Point1.x <= Mathf.Max(p1Point1.x, p1Point2.x)
-                    )
-                    {
-                        float resultY = (polygon1Slope * p2Point1.x) + p1Point1.y - (p1Point1.x * polygon1Slope);
-                        Vector2 collisionRay = new Vector2(0, resultY - p2Point1.y);
-                        if (Mathf.Sign(collisionRay.y) == -rayDirection && collisionRay.magnitude < result.ray.magnitude)
-                        {
-                            result.success = true;
-                            result.ray = -collisionRay;
-                            result.hitPoint = p2Point1;
-                        }
-                    }
+                    return lineCrossing;
                 }
             }
         }
 
-        return result;
+        return new CastResult2D();
     }
 
     public static CastResult2D PolygonCast2D(Vector2[] polygon1, Vector2[] polygon2, Vector2 ray)
     {
-        if (ray.x == 0)
+        CastResult2D polygonsTouching = PolygonsAreTouching2D(polygon1, polygon2);
+        if (polygonsTouching.success)
         {
-            return PolygonVerticalCast2D(polygon1, polygon2, ray.y);
+            return new CastResult2D(true, default, polygonsTouching.hitPoint);
         }
 
-        CastResult2D result = new CastResult2D(false, ray);
+        // The only points which could cause the cast to hit something are the vertices of both polygons.
+        // Therefore, only the vertices need to be tested to see if they would be hit in the cast.
 
-        float raySlope = ray.y / ray.x;
+        CastResult2D result = new CastResult2D(false, ray);
         for (int p1PointIndex = 0; p1PointIndex < polygon1.Length; p1PointIndex++)
         {
             Vector2 p1Point1 = polygon1[p1PointIndex];
@@ -225,118 +284,27 @@ public class ColliderHelper : MonoBehaviour
                 Vector2 p2Point2 = polygon2[(p2PointIndex + 1) % polygon2.Length];
 
                 // cast ray from p1Point1 to the line between p2Point1 and p2Point2
-                float polygon2DeltaX = p2Point1.x - p2Point2.x;
-                if (polygon2DeltaX == 0)
+                CastResult2D rayHit = LinesIntersect2D(p1Point1, p1Point1 + ray, p2Point1, p2Point2);
+                Vector2 newRay = rayHit.hitPoint - p1Point1;
+                if (rayHit.success && newRay.magnitude < result.ray.magnitude)
                 {
-                    float resultY = (raySlope * p2Point1.x) + p1Point1.y - (raySlope * p1Point1.x);
-                    if (
-                        resultY >= Mathf.Min(p2Point1.y, p2Point2.y) &&
-                        resultY <= Mathf.Max(p2Point1.y, p2Point2.y) &&
-                        resultY >= Mathf.Min(p1Point1.y, p1Point1.y + ray.y) &&
-                        resultY <= Mathf.Max(p1Point1.y, p1Point1.y + ray.y)
-                    )
-                    {
-                        float resultX = p2Point1.x;
-                        Vector2 collisionRay = new Vector2(resultX - p1Point1.x, resultY - p1Point1.y);
-                        if (collisionRay.magnitude < result.ray.magnitude)
-                        {
-                            result.success = true;
-                            result.ray = collisionRay;
-                            result.hitPoint = new Vector2(resultX, resultY);
-                        }
-                    }
-                }
-                else
-                {
-                    float polygon2Slope = (p2Point1.y - p2Point2.y) / polygon2DeltaX;
-                    float resultX;
-                    if (polygon2Slope == raySlope)
-                    {
-                        resultX = Mathf.Infinity;
-                    }
-                    else
-                    {
-                        resultX = (p2Point1.y - (polygon2Slope * p2Point1.x) - p1Point1.y + (p1Point1.x * raySlope)) / (raySlope - polygon2Slope);
-                    }
-                    if (
-                        resultX >= Mathf.Min(p2Point1.x, p2Point2.x) &&
-                        resultX <= Mathf.Max(p2Point1.x, p2Point2.x) &&
-                        resultX >= Mathf.Min(p1Point1.x, p1Point1.x + ray.x) &&
-                        resultX <= Mathf.Max(p1Point1.x, p1Point1.x + ray.x)
-                    )
-                    {
-                        float resultY = (raySlope * resultX) + p1Point1.y - (p1Point1.x * raySlope);
-                        Vector2 collisionRay = new Vector2(resultX - p1Point1.x, resultY - p1Point1.y);
-                        if (collisionRay.magnitude < result.ray.magnitude)
-                        {
-                            result.success = true;
-                            result.ray = collisionRay;
-                            result.hitPoint = new Vector2(resultX, resultY);
-                        }
-                    }
+                    result.success = true;
+                    result.ray = newRay;
+                    result.hitPoint = rayHit.hitPoint;
                 }
 
                 // cast ray from p2Point1 to the line between p1Point1 and p1Point2
-                float polygon1DeltaX = p1Point1.x - p1Point2.x;
-                if (polygon1DeltaX == 0)
+                rayHit = LinesIntersect2D(p1Point1, p1Point2, p2Point1, p2Point1 - ray);
+                newRay = p2Point1 - rayHit.hitPoint;
+                if (rayHit.success && newRay.magnitude < result.ray.magnitude)
                 {
-                    float resultY = (raySlope * p1Point1.x) + p2Point1.y - (raySlope * p2Point1.x);
-                    if (
-                        resultY >= Mathf.Min(p1Point1.y, p1Point2.y) &&
-                        resultY <= Mathf.Max(p1Point1.y, p1Point2.y) &&
-                        resultY >= Mathf.Min(p2Point1.y, p2Point1.y - ray.y) &&
-                        resultY <= Mathf.Max(p2Point1.y, p2Point1.y - ray.y)
-                    )
-                    {
-                        float resultX = p1Point1.x;
-                        Vector2 collisionRay = new Vector2(resultX - p2Point1.x, resultY - p2Point1.y);
-                        if (collisionRay.magnitude < result.ray.magnitude)
-                        {
-                            result.success = true;
-                            result.ray = -collisionRay;
-                            result.hitPoint = p2Point1;
-                        }
-                    }
-                }
-                else
-                {
-                    float polygon1Slope = (p1Point1.y - p1Point2.y) / polygon1DeltaX;
-                    float resultX;
-                    if (polygon1Slope == raySlope)
-                    {
-                        resultX = Mathf.Infinity;
-                    }
-                    else
-                    {
-                        resultX = (p1Point1.y - (polygon1Slope * p1Point1.x) - p2Point1.y + (p2Point1.x * raySlope)) / (raySlope - polygon1Slope);
-                    }
-                    if (
-                        resultX >= Mathf.Min(p1Point1.x, p1Point2.x) &&
-                        resultX <= Mathf.Max(p1Point1.x, p1Point2.x) &&
-                        resultX >= Mathf.Min(p2Point1.x, p2Point1.x - ray.x) &&
-                        resultX <= Mathf.Max(p2Point1.x, p2Point1.x - ray.x)
-                    )
-                    {
-                        float resultY = (raySlope * resultX) + p2Point1.y - (p2Point1.x * raySlope);
-                        Vector2 collisionRay = new Vector2(resultX - p2Point1.x, resultY - p2Point1.y);
-                        if (collisionRay.magnitude < result.ray.magnitude)
-                        {
-                            result.success = true;
-                            result.ray = -collisionRay;
-                            result.hitPoint = p2Point1;
-                        }
-                    }
+                    result.success = true;
+                    result.ray = newRay;
+                    result.hitPoint = p2Point1;
                 }
             }
         }
 
-        return result;
-    }
-
-    public static CastResult2D ColliderVerticalCast2D(Collider2D collider1, Collider2D collider2, float ray)
-    {
-        CastResult2D result = PolygonVerticalCast2D(GetColliderVertices2D(collider1), GetColliderVertices2D(collider2), ray);
-        result.hitCollider = collider2;
         return result;
     }
 
@@ -347,16 +315,6 @@ public class ColliderHelper : MonoBehaviour
         return result;
     }
 
-    public static CastResult2D[] PolygonVerticalCast2D(Vector2[] polygon1, Vector2[][] polygon2s, float ray)
-    {
-        CastResult2D[] results = new CastResult2D[polygon2s.Length];
-        for (int i = 0; i < polygon2s.Length; i++)
-        {
-            results[i] = PolygonVerticalCast2D(polygon1, polygon2s[i], ray);
-        }
-        return results;
-    }
-
     public static CastResult2D[] PolygonCast2D(Vector2[] polygon1, Vector2[][] polygon2s, Vector2 ray)
     {
         CastResult2D[] results = new CastResult2D[polygon2s.Length];
@@ -365,29 +323,6 @@ public class ColliderHelper : MonoBehaviour
             results[i] = PolygonCast2D(polygon1, polygon2s[i], ray);
         }
         return results;
-    }
-
-    public static CastResult2D[] ColliderVerticalCast2D(Collider2D collider1, Collider2D[] collider2s, float ray, bool filter = false, bool sort = false, bool includeSelf = true)
-    {
-        Vector2[] vertices = GetColliderVertices2D(collider1);
-        List<CastResult2D> results = new List<CastResult2D>();
-        for (int i = 0; i < collider2s.Length; i++)
-        {
-            if (includeSelf || collider2s[i] != collider1)
-            {
-                CastResult2D castResult = PolygonVerticalCast2D(vertices, GetColliderVertices2D(collider2s[i]), ray);
-                if (castResult.success || !filter)
-                {
-                    castResult.hitCollider = collider2s[i];
-                    results.Add(castResult);
-                }
-            }
-        }
-        if (sort)
-        {
-            results.Sort(delegate (CastResult2D result1, CastResult2D result2) { return result1.ray.magnitude > result2.ray.magnitude ? 1 : -1; });
-        }
-        return results.ToArray();
     }
 
     public static CastResult2D[] ColliderCast2D(Collider2D collider1, Collider2D[] collider2s, Vector2 ray, bool filter = false, bool sort = false, bool includeSelf = true)
@@ -422,11 +357,6 @@ public class ColliderHelper : MonoBehaviour
             colliders.AddRange(gameObject.GetComponentsInChildren<Collider2D>());
         }
         return colliders.ToArray();
-    }
-
-    public static CastResult2D[] ColliderVerticalCastAll2D(Collider2D collider1, float ray, bool filter = false, bool sort = false, bool includeSelf = true)
-    {
-        return ColliderVerticalCast2D(collider1, GetAllColliders(), ray, filter, sort, includeSelf);
     }
 
     public static CastResult2D[] ColliderCastAll2D(Collider2D collider1, Vector2 ray, bool filter = false, bool sort = false, bool includeSelf = true)
