@@ -158,15 +158,19 @@ public class ColliderHelper : MonoBehaviour
         float resultY = 0;
 
         // Vertical lines need to be dealt with separately because their slopes are undefined.
-        if (line1xDiff == 0)
+        if (Mathf.Approximately(line1xDiff, 0))
         {
-            if (line2xDiff != 0)
+            if (!Mathf.Approximately(line2xDiff, 0))
             {
                 resultX = line1point1.x;
                 resultY = (line2slope * line1point1.x) + line2point1.y - (line2slope * line2point1.x);
             }
+            else
+            {
+                return result;
+            }
         }
-        else if (line2xDiff == 0)
+        else if (Mathf.Approximately(line2xDiff, 0))
         {
             resultX = line2point1.x;
             resultY = (line1slope * line2point1.x) + line1point1.y - (line1slope * line1point1.x);
@@ -175,24 +179,36 @@ public class ColliderHelper : MonoBehaviour
         {
             // If the lines are parallel, their slopes will be equal and the lines will not cross.
             float slopeDiff = line1slope - line2slope;
-            if (slopeDiff != 0)
+            if (!Mathf.Approximately(slopeDiff, 0))
             {
                 float b1 = line1point1.y - (line1slope * line1point1.x);
                 resultX = (line2point1.y - (line2slope * line2point1.x) - b1) / slopeDiff;
                 resultY = (line1slope * resultX) + b1;
             }
+            else
+            {
+                return result;
+            }
         }
 
         // After finding the intersection point, it needs to be tested to see if it lies between both sets of endpoints.
+        float line1minX = Mathf.Min(line1point1.x, line1point2.x);
+        float line1maxX = Mathf.Max(line1point1.x, line1point2.x);
+        float line2minX = Mathf.Min(line2point1.x, line2point2.x);
+        float line2maxX = Mathf.Max(line2point1.x, line2point2.x);
+        float line1minY = Mathf.Min(line1point1.y, line1point2.y);
+        float line1maxY = Mathf.Max(line1point1.y, line1point2.y);
+        float line2minY = Mathf.Min(line2point1.y, line2point2.y);
+        float line2maxY = Mathf.Max(line2point1.y, line2point2.y);
         if (
-            Mathf.Min(line1point1.x, line1point2.x) <= resultX &&
-            Mathf.Max(line1point1.x, line1point2.x) >= resultX &&
-            Mathf.Min(line1point1.y, line1point2.y) <= resultY &&
-            Mathf.Max(line1point1.y, line1point2.y) >= resultY &&
-            Mathf.Min(line2point1.x, line2point2.x) <= resultX &&
-            Mathf.Max(line2point1.x, line2point2.x) >= resultX &&
-            Mathf.Min(line2point1.y, line2point2.y) <= resultY &&
-            Mathf.Max(line2point1.y, line2point2.y) >= resultY
+            (line1minX < resultX || Mathf.Approximately(line1minX, resultX)) &&
+            (line1maxX > resultX || Mathf.Approximately(line1maxX, resultX)) &&
+            (line2minX < resultX || Mathf.Approximately(line2minX, resultX)) &&
+            (line2maxX > resultX || Mathf.Approximately(line2maxX, resultX)) &&
+            (line1minY < resultY || Mathf.Approximately(line1minY, resultY)) &&
+            (line1maxY > resultY || Mathf.Approximately(line1maxY, resultY)) &&
+            (line2minY < resultY || Mathf.Approximately(line2minY, resultY)) &&
+            (line2maxY > resultY || Mathf.Approximately(line2maxY, resultY))
         )
         {
             result.success = true;
@@ -284,9 +300,9 @@ public class ColliderHelper : MonoBehaviour
                 Vector2 p2Point2 = polygon2[(p2PointIndex + 1) % polygon2.Length];
 
                 // cast ray from p1Point1 to the line between p2Point1 and p2Point2
-                CastResult2D rayHit = LinesIntersect2D(p1Point1, p1Point1 + ray, p2Point1, p2Point2);
+                CastResult2D rayHit = LinesIntersect2D(p1Point1, p1Point1 + result.ray, p2Point1, p2Point2);
                 Vector2 newRay = rayHit.hitPoint - p1Point1;
-                if (rayHit.success && newRay.magnitude < result.ray.magnitude)
+                if (rayHit.success)
                 {
                     result.success = true;
                     result.ray = newRay;
@@ -294,9 +310,9 @@ public class ColliderHelper : MonoBehaviour
                 }
 
                 // cast ray from p2Point1 to the line between p1Point1 and p1Point2
-                rayHit = LinesIntersect2D(p1Point1, p1Point2, p2Point1, p2Point1 - ray);
+                rayHit = LinesIntersect2D(p1Point1, p1Point2, p2Point1, p2Point1 - result.ray);
                 newRay = p2Point1 - rayHit.hitPoint;
-                if (rayHit.success && newRay.magnitude < result.ray.magnitude)
+                if (rayHit.success)
                 {
                     result.success = true;
                     result.ray = newRay;
