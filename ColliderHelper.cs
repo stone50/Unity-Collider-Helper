@@ -379,4 +379,21 @@ public class ColliderHelper : MonoBehaviour
     {
         return ColliderCast2D(collider1, GetAllColliders(), ray, filter, sort, includeSelf);
     }
+
+    public static CastResult2D[] ColliderIsTouchingAll2D(Collider2D collider, bool filter = false)
+    {
+        Vector2[] vertices = GetColliderVertices2D(collider);
+        Collider2D[] allColliders = GetAllColliders();
+        List<CastResult2D> results = new List<CastResult2D>();
+        for (int i = 0; i < allColliders.Length; i++)
+        {
+            CastResult2D result = PolygonsAreTouching2D(vertices, GetColliderVertices2D(allColliders[i]));
+            if (result.success || !filter)
+            {
+                result.hitCollider = allColliders[i];
+                results.Add(result);
+            }
+        }
+        return results.ToArray();
+    }
 }
