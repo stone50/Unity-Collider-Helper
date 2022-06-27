@@ -32,3 +32,5 @@ A Unity helper class that adds features to colliders
 - Sort hits by distance
 
 - Exclude the collider being cast
+
+### - Getting The Intersection Of All Colliders To One Collider
